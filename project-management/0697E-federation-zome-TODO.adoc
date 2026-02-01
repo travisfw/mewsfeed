@@ -1,0 +1,327 @@
+= 0697E: Federation Zome Pair
+:toc: macro
+:toc-title: Contents
+:sectnums:
+
+toc::[]
+
+== Abstract
+
+This specdoc delivers the `federation_integrity` and `federation` coordinator
+zome pair, wired into the mewsfeed DNA. The zomes persist ActivityPub
+federation state on the DHT using types from
+link:../crates/federation_types/[`federation_types`].
+
+This is the Holochain-side implementation described in
+link:0697D-activitypub-zome-PWOR.adoc[0697D]. The S2S module integration
+(`ZomeDataSource`, integration server, round-trip tests) is deferred to 0697F.
+
+Verification is build-only: WASM compilation of both zomes, workspace check,
+and hApp assembly.
+
+== Integrity Zome
+
+Location: `dnas/mewsfeed/zomes/integrity/federation/`
+
+=== Entry Types
+
+Six entry types, all public visibility, reusing structs from `federation_types`:
+
+[source,rust]
+----
+#[hdk_entry_types]
+#[unit_enum(UnitEntryTypes)]
+pub enum EntryTypes {
+    InstanceConfig(InstanceConfig),
+    MewFederationState(MewFederationState),
+    RemoteActorRef(RemoteActorRef),
+    RemoteFollow(RemoteFollow),
+    RemoteFollower(RemoteFollower),
+    RemoteInteraction(RemoteInteraction),
+}
+----
+
+=== Link Types
+
+[source,rust]
+----
+#[hdk_link_types]
+pub enum LinkTypes {
+    MewToFederationState,
+    AgentToRemoteFollows,
+    AgentToRemoteFollowers,
+    MewToRemoteInteractions,
+    AnchorToInstanceConfig,
+    ApUriToFederationState,
+    ActorUriToRemoteActorRef,
+}
+----
+
+=== Validation Rules
+
+`MewFederationState`::
+  The action author must be the author of the mew referenced by `mew_hash`.
+  Validate via `must_get_action(entry.mew_hash)` and compare `.author` to the
+  creating action's author. This is a cross-zome read (mew lives in
+  `mews_integrity`).
+
+`RemoteFollow`::
+  `entry.local_agent` must equal the action author. This ensures agents can
+  only create follow records for themselves.
+
+`RemoteFollower`, `RemoteInteraction`::
+  Permissive -- any agent may create these. The S2S gateway agent writes them
+  on behalf of inbound fediverse activity.
+
+`InstanceConfig`::
+  Entry creation itself is permissive. The `AnchorToInstanceConfig` link
+  enforces singleton behavior (see below).
+
+`AnchorToInstanceConfig` link::
+  First-write-wins. `validate_create_link` checks that no existing link from
+  the anchor base exists via `get_links`. If a link already exists, return
+  `ValidateCallbackResult::Invalid`.
+
+Other links::
+  Permissive for initial implementation. The link base should correspond to
+  the relevant field in the target entry (e.g., `MewToFederationState` base
+  is the mew's `ActionHash`), but strict validation of this can be added
+  incrementally.
+
+=== Cargo.toml
+
+[source,toml]
+----
+[package]
+name = "federation_integrity"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+name = "federation_integrity"
+
+[dependencies]
+hdi = { workspace = true }
+serde = { workspace = true }
+federation_types = { workspace = true }
+----
+
+Note: `federation_types` depends on `hdk`, but `federation_integrity` uses
+`hdi`. The entry type structs only need `Serialize + Deserialize +
+SerializedBytes` which both `hdk` and `hdi` re-export. If there is a
+compilation conflict, the integrity zome can re-derive `SerializedBytes` on
+newtype wrappers, or `federation_types` can be refactored to depend on `hdi`
+instead of `hdk`. Evaluate at build time.
+
+== Coordinator Zome
+
+Location: `dnas/mewsfeed/zomes/coordinator/federation/`
+
+=== Module Layout
+
+[source]
+----
+src/
+  lib.rs                     -- #[hdk_extern] declarations, init
+  config.rs                  -- set_instance_config, get_instance_config
+  federation_state.rs        -- create, set_ap_uri, get, get_by_ap_uri
+  remote_actors.rs           -- upsert, get
+  remote_follows.rs          -- create, update_status, list, delete
+  remote_followers.rs        -- create, list, delete
+  remote_interactions.rs     -- create, list, delete_by_activity_uri
+  cross_zome.rs              -- get_agent_ap_profile, get_federated_mews_for_agent
+----
+
+=== Extern Functions
+
+Grouped by module. Input/output types use standard HDK patterns
+(`ActionHash`, `AgentPubKey`, `ExternResult<...>`).
+
+==== config.rs
+
+`set_instance_config(config: InstanceConfig) -> ExternResult<ActionHash>`::
+  Create `InstanceConfig` entry. Create `AnchorToInstanceConfig` link from a
+  deterministic anchor (e.g., `hash_entry("federation_instance_config")?`).
+  If the anchor link already exists, return error (singleton).
+
+`get_instance_config() -> ExternResult<Option<InstanceConfig>>`::
+  Get link from the singleton anchor, fetch the entry.
+
+==== federation_state.rs
+
+`create_mew_federation_state(state: MewFederationState) -> ExternResult<ActionHash>`::
+  Create entry, link from `state.mew_hash` via `MewToFederationState`.
+  If `state.ap_uri` is `Some`, also create `ApUriToFederationState` link.
+
+`set_mew_ap_uri(input: SetApUriInput) -> ExternResult<()>`::
+  Update the `ap_uri` field. Input contains `mew_hash: ActionHash` and
+  `ap_uri: String`. Create `ApUriToFederationState` link.
+
+`get_mew_federation_state(mew_hash: ActionHash) -> ExternResult<Option<MewFederationState>>`::
+  Follow `MewToFederationState` link from the mew hash.
+
+`get_mew_by_ap_uri(ap_uri: String) -> ExternResult<Option<MewFederationState>>`::
+  Hash the URI string, follow `ApUriToFederationState` link.
+
+==== remote_actors.rs
+
+`upsert_remote_actor_ref(actor: RemoteActorRef) -> ExternResult<ActionHash>`::
+  Hash `actor.actor_uri`, check for existing `ActorUriToRemoteActorRef` link.
+  If exists, update entry; if not, create entry and link.
+
+`get_remote_actor_ref(actor_uri: String) -> ExternResult<Option<RemoteActorRef>>`::
+  Hash the URI, follow `ActorUriToRemoteActorRef` link.
+
+==== remote_follows.rs
+
+`create_remote_follow(follow: RemoteFollow) -> ExternResult<ActionHash>`::
+  Create entry, link from `follow.local_agent` via `AgentToRemoteFollows`.
+
+`update_remote_follow_status(input: UpdateFollowStatusInput) -> ExternResult<()>`::
+  Input: `follow_hash: ActionHash`, `status: RemoteFollowStatus`.
+  Fetch existing, create updated entry.
+
+`list_remote_follows(agent: AgentPubKey) -> ExternResult<Vec<RemoteFollow>>`::
+  Get links from agent via `AgentToRemoteFollows`, fetch entries.
+
+`delete_remote_follow(follow_hash: ActionHash) -> ExternResult<()>`::
+  Delete the entry and associated link.
+
+==== remote_followers.rs
+
+`create_remote_follower(follower: RemoteFollower) -> ExternResult<ActionHash>`::
+  Create entry, link from `follower.local_agent` via `AgentToRemoteFollowers`.
+
+`list_remote_followers(agent: AgentPubKey) -> ExternResult<Vec<RemoteFollower>>`::
+  Get links from agent, fetch entries.
+
+`delete_remote_follower(follower_hash: ActionHash) -> ExternResult<()>`::
+  Delete entry and link.
+
+==== remote_interactions.rs
+
+`create_remote_interaction(interaction: RemoteInteraction) -> ExternResult<ActionHash>`::
+  Create entry, link from `interaction.mew_hash` via
+  `MewToRemoteInteractions`.
+
+`list_remote_interactions(mew_hash: ActionHash) -> ExternResult<Vec<RemoteInteraction>>`::
+  Get links from mew hash, fetch entries.
+
+`delete_remote_interaction_by_uri(activity_uri: String) -> ExternResult<()>`::
+  Scan links to find the interaction with matching `activity_uri`, delete it.
+
+==== cross_zome.rs
+
+`get_agent_ap_profile(agent: AgentPubKey) -> ExternResult<Option<serde_json::Value>>`::
+  Call `profiles` zome to get the agent's profile. Combine with
+  `InstanceConfig` to construct a JSON blob suitable for the S2S module to
+  build an `APActor`. Uses `hc_call_utils` for cross-zome calls.
+
+`get_federated_mews_for_agent(agent: AgentPubKey) -> ExternResult<Vec<MewFederationState>>`::
+  Call `mews` zome to get agent's mew hashes. For each, check
+  `MewToFederationState` links. Return states where visibility is not
+  `HolochainOnly`.
+
+=== Cargo.toml
+
+[source,toml]
+----
+[package]
+name = "federation"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+name = "federation"
+
+[dependencies]
+hdk = { workspace = true }
+serde = { workspace = true }
+federation_integrity = { workspace = true }
+federation_types = { workspace = true }
+hc_call_utils = { workspace = true }
+mews_types = { workspace = true }
+----
+
+== DNA Manifest Update
+
+Add to `dnas/mewsfeed/workdir/dna.yaml`:
+
+Under `integrity.zomes`, append:
+
+[source,yaml]
+----
+    - name: federation_integrity
+      hash: ~
+      path: "../../../target/wasm32-unknown-unknown/release/federation_integrity.wasm"
+      dependencies: ~
+----
+
+Under `coordinator.zomes`, append:
+
+[source,yaml]
+----
+    - name: federation
+      hash: ~
+      path: "../../../target/wasm32-unknown-unknown/release/federation.wasm"
+      dependencies:
+        - name: federation_integrity
+        - name: mews_integrity
+        - name: profiles_integrity
+----
+
+== Workspace Cargo.toml
+
+Add workspace dependency entries:
+
+[source,toml]
+----
+[workspace.dependencies.federation_integrity]
+path = "dnas/mewsfeed/zomes/integrity/federation"
+
+[workspace.dependencies.federation]
+path = "dnas/mewsfeed/zomes/coordinator/federation"
+
+[workspace.dependencies.federation_types]
+path = "crates/federation_types"
+----
+
+The `members` glob `dnas/*/zomes/integrity/*` and `dnas/*/zomes/coordinator/*`
+already cover the new directories.
+
+== Verification
+
+=== Build gates
+
+[source,bash]
+----
+cargo build -p federation_integrity --target wasm32-unknown-unknown --release
+cargo build -p federation --target wasm32-unknown-unknown --release
+cargo check --workspace
+npm run build:happ
+----
+
+All four commands must succeed.
+
+=== Consistency check
+
+- Every entry type in the integrity zome enum corresponds to a struct in
+  `federation_types`.
+- Every link type in the integrity zome enum is referenced by at least one
+  coordinator function.
+- The coordinator `lib.rs` exports all functions listed above as
+  `#[hdk_extern]`.
+- The DNA manifest lists `federation_integrity` and `federation` with correct
+  paths and dependency declarations.
+
+== Up Next
+
+With the zome pair compiling and included in the hApp, the next step is
+link:0697D-activitypub-zome-PWOR.adoc[0697F]: implement `ZomeDataSource` in
+the `activitypub-s2s` crate, create the `integration_server` example binary,
+add DHT debug endpoints, and run the round-trip bash verification scripts
+from 0697D. A separate specdoc (0698x) will address the connection model
+(configurable bind address, LAN mode, Caddy/nginx gateway config for
+internet mode) and S2S module hardening (retry logic, rate limiting, CORS).

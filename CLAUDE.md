@@ -20,23 +20,25 @@ When making a file executable, never `chmod +x`, instead `chmod ug+x`.
 For any code generation there should be a Markdown or (preferred) AsciiDoc file in the project-management directory detailing tasks to be done, and testing to verify correctness, *before* generating code. This is the **specdoc**.
 This specdoc may be a ticket in project-management/tickets, or another file indicated by the human driver.
 The specdoc should follow a naming convention where the first five characters of the file name are most significant hexidecimal digits of unix time starting with 0, eg `0697C`, on 2026 Jan 30.
+Incrementing these five digits to future dates or backdating is fine.
 The middle of the specdoc file name should be a very short descriptive name.
 The suffix of the specdoc file name is TODO for future work, PWIP for present work in progress (sometimes PWOR for present work), or DONE for completed work, or AXED for work that has been decided against, then the file type suffix. Case doesn't matter.
 
-A generated specdoc should end with a brief section describing future work,
- called "Up Next" or "Final Future Abstract" which may be abbreviated, FFA.
+A generated specdoc should end with a brief section describing future work, called "Up Next".
 It should read like the abstract of a paper, being brief, high level, covering important topics,
-and should not go into detail. The Up Next, or Final Future Abstract, may reference a few tickets.
-The FFA may simply say that this particular work is complete,
+and should not go into detail. Up Next may reference a few tickets.
+Up Next may simply say that this particular work is complete,
  or that there are a number of choices of what to do next,
  which may or may not be enumerated.
 
 When generating these specdocs, describe the task mostly with american english, with some pseudocode.
-Code snippets in a specdoc should be kept brief, only supporting a point.
+The specdoc is for a human to understand why the work is being done with regards to previous work,
+supporting future work, and how the task supports the overall project goals.
+Therefore, code snippets in a specdoc should be kept brief, only supporting a point, never exactly the full code.
 A generated specdoc should be under 256 lines,
  though they may grow incrementally as directed by, or edited by, a human.
 To keep the specdoc short enough, the scope of present work may be limited,
- and mention of such work may be added to the FFA.
+ and mention of such work may be added to the Up Next section.
 A specdoc should name types and other entities in code in the same repository,
  and it should link to the source file in which they can be found.
 Before the code is written, these links will be broken, which is fine.
