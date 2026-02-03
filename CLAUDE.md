@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MewsFeed is a Twitter-like decentralized social media application built on Holochain. "Mews" are the equivalent of tweets, with features like replies, quotes, retweets ("mewmews"), likes ("licks"), mentions, hashtags, and cashtags.
 
+## Human Interaction
+
+Teach me one thing every return from a prompt that will incrementally help me work on this project without AI.
+
 ## Safety
 
 Always avoid putting the home directory, current user, or other references to non-reproducible or personal environment in source files, documentation, and commit messages.
@@ -15,15 +19,24 @@ When making a file executable, never `chmod +x`, instead `chmod ug+x`.
 
 ## Project Management
 
+The project-management directory contains descriptions of work to be done and that has been done;
+work that is out of scope and high-level 
+
 ### the specdoc
 
 For any code generation there should be a Markdown or (preferred) AsciiDoc file in the project-management directory detailing tasks to be done, and testing to verify correctness, *before* generating code. This is the **specdoc**.
 This specdoc may be a ticket in project-management/tickets, or another file indicated by the human driver.
+
+#### specdoc file name convention
 The specdoc should follow a naming convention where the first five characters of the file name are most significant hexidecimal digits of unix time starting with 0, eg `0697C`, on 2026 Jan 30.
 Incrementing these five digits to future dates or backdating is fine.
 The middle of the specdoc file name should be a very short descriptive name.
-The suffix of the specdoc file name is TODO for future work, PWIP for present work in progress (sometimes PWOR for present work), or DONE for completed work, or AXED for work that has been decided against, then the file type suffix. Case doesn't matter.
+The suffix of the specdoc file name is TODO for future work,
+PWIP for present work in progress (sometimes PWOR for present work),
+or DONE for completed work, or AXED for work that has been decided against,
+then the file type suffix. Case doesn't matter.
 
+#### the final Up Next section
 A generated specdoc should end with a brief section describing future work, called "Up Next".
 It should read like the abstract of a paper, being brief, high level, covering important topics,
 and should not go into detail. Up Next may reference a few tickets.
@@ -31,23 +44,45 @@ Up Next may simply say that this particular work is complete,
  or that there are a number of choices of what to do next,
  which may or may not be enumerated.
 
-When generating these specdocs, describe the task mostly with american english, with some pseudocode.
+#### generating the specdoc
+When generating these specdocs,
+ first write the plan from plan mode into the project-management/plans directory,
+ and link to it in the beginning of the generated specdoc.
+While the plan is for the agent and the human may read it,
+ the specdoc is for the human, and the agent should make sure it is consistent with the work, or ask to update it.
+
+#### pseudocode and single-line steps
+Generated specdoc content should not include code beyond single-line method signatures,
+ and in-line monospace names of entities in the code,
+ or expressions that support a point,
+ but it should contain short pseudocode snippets, and ordered lists of steps.
+Copy items in ordered lists of steps into the code as single-line comments.
+
 The specdoc is for a human to understand why the work is being done with regards to previous work,
-supporting future work, and how the task supports the overall project goals.
-Therefore, code snippets in a specdoc should be kept brief, only supporting a point, never exactly the full code.
+ supporting future work, and how the task supports the overall project goals.
+
+#### digestible length
 A generated specdoc should be under 256 lines,
  though they may grow incrementally as directed by, or edited by, a human.
 To keep the specdoc short enough, the scope of present work may be limited,
- and mention of such work may be added to the Up Next section.
+ utilizing the Up Next section, or creating a ticket in project-management/tickets.
 A specdoc should name types and other entities in code in the same repository,
  and it should link to the source file in which they can be found.
 Before the code is written, these links will be broken, which is fine.
-A generated specdoc should focus on evaluating the completion and correctness of the code generation.
-Human-written tickets (or other documents) may serve as a specdoc, in which case some of these constraints may not be met, which is fine.
 
-When the code is generated, evaluate and report any inconsistency with the specdoc and other relevant documentation in the project management directory.
+#### human verification
+A generated specdoc should enable a human to evaluate the completion and correctness of the code generation.
+Human-written tickets (or other documents) may serve as a specdoc,
+ in which case some of these constraints (like file name) may not be met, which is fine,
+ but ask the human if you may update it to enable the human to verify the work.
 
-When opening tickets (creating a file) in project-management/tickets, use AsciiDoc format.
+#### consistency
+When the code is generated (work is done),
+ evaluate and report any inconsistency with the specdoc
+ and other obviously relevant documentation in the project management directory.
+
+## tickets
+Open tickets by creating a file in project-management/tickets.
 
 ## bash scripts
 

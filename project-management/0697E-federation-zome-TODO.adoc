@@ -78,9 +78,12 @@ pub enum LinkTypes {
   enforces singleton behavior (see below).
 
 `AnchorToInstanceConfig` link::
-  First-write-wins. `validate_create_link` checks that no existing link from
-  the anchor base exists via `get_links`. If a link already exists, return
-  `ValidateCallbackResult::Invalid`.
+  First-write-wins. Integrity validation is permissive because `get_links` is
+  not available in validation callbacks (validation must be deterministic).
+  Singleton enforcement is handled at the coordinator level:
+  `set_instance_config` calls `get_links` on the anchor and returns an error
+  if a link already exists (see
+  link:../dnas/mewsfeed/zomes/coordinator/federation/src/config.rs[`config.rs:15-21`]).
 
 Other links::
   Permissive for initial implementation. The link base should correspond to
