@@ -27,6 +27,9 @@
         ]) ++ (with pkgs; [
           nodejs_22 # For UI development
           binaryen # For WASM optimisation
+          cmake # For holochain sweettest integration tests
+          zlib #For datachannel-sys (sweettest dependency)
+          zlib.dev # CMake needs the dev package too
           # Add any other packages you need here
         ]);
 

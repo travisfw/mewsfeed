@@ -1,0 +1,16 @@
+[package]
+name = "activitypub"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+name = "activitypub"
+
+[dependencies]
+hdk = { workspace = true }
+serde = { workspace = true }
+activitypub_integrity = { workspace = true }
+activitypub_types = { workspace = true }
+hc_call_utils = { workspace = true }
+mews_types = { workspace = true }

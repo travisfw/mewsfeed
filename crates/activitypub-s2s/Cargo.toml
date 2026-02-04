@@ -32,3 +32,17 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 async-trait = "0.1"
 thiserror = "2"
+url = "2"
+
+# Holochain conductor client (optional, for ZomeDataSource)
+holochain_client = { version = "0.8", optional = true }
+holochain_zome_types = { version = "0.6", optional = true }
+holo_hash = { version = "0.6", optional = true }
+
+[features]
+default = []
+zome = ["dep:holochain_client", "dep:holochain_zome_types", "dep:holo_hash"]
+
+[dev-dependencies]
+holochain = { version = "0.6", features = ["sweettest"] }
+holochain_types = "0.6"

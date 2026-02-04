@@ -7,7 +7,8 @@ use hdk::prelude::*;
 /// - optional mapping to a canonical ActivityPub URI (`ap_uri`)
 ///
 /// Delivery attempts/results are tracked outside the DHT (S2S-local).
-#[derive(Serialize, Deserialize, SerializedBytes, Debug, Clone)]
+#[hdk_entry_helper]
+#[derive(Clone)]
 pub struct MewFederationState {
     pub mew_hash: ActionHash,
     /// The ActivityPub URI for this mew, e.g.,

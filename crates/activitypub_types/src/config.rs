@@ -4,7 +4,8 @@ use hdk::prelude::*;
 /// Derived from an invite URL during hApp installation.
 /// All nodes in the Holochain network share responsibility for serving this
 /// instance.
-#[derive(Serialize, Deserialize, SerializedBytes, Debug, Clone)]
+#[hdk_entry_helper]
+#[derive(Clone)]
 pub struct InstanceConfig {
     /// The subdomain for this instance, e.g., "cats"
     pub subdomain: String,

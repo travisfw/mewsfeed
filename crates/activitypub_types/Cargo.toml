@@ -1,11 +1,11 @@
 [package]
-name = "federation_types"
+name = "activitypub_types"
 version = "0.0.1"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
-name = "federation_types"
+name = "activitypub_types"
 
 [dependencies]
 hdk = { workspace = true }
