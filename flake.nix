@@ -28,13 +28,17 @@
           nodejs_22 # For UI development
           binaryen # For WASM optimisation
           cmake # For holochain sweettest integration tests
+          llvmPackages.libclang # For bindgen (sweettest dependencies)
           zlib #For datachannel-sys (sweettest dependency)
           zlib.dev # CMake needs the dev package too
+          xz # For liblzma (sweettest runtime dependency)
           # Add any other packages you need here
         ]);
 
         shellHook = ''
           export PS1='\[\033[1;34m\][holonix:\w]\$\[\033[0m\] '
+          export LIBCLANG_PATH="${pkgs.llvmPackages.libclang.lib}/lib"
+          export LD_LIBRARY_PATH="${pkgs.xz.out}/lib:$LD_LIBRARY_PATH"
         '';
       };
     };

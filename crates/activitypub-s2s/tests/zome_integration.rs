@@ -9,16 +9,14 @@
 #![cfg(feature = "zome")]
 
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use holochain::sweettest::{SweetConductor, SweetDnaFile};
-use holochain_types::prelude::*;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_conductor_setup() {
     // Basic smoke test: can we start a conductor and install the DNA?
 
-    let conductor = SweetConductor::from_standard_config().await;
+    let mut conductor = SweetConductor::from_standard_config().await;
 
     // Path to the DNA bundle (built by npm run build:happ)
     let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -34,17 +32,27 @@ async fn test_conductor_setup() {
         .await
         .expect("Failed to load DNA bundle");
 
-    let app = conductor
-        .setup_app("test-app", &[dna])
-        .await
-        .expect("Failed to install app");
-
-    // Verify activitypub zomes are present
-    let cell = &app.cells()[0];
-    let zomes: Vec<_> = cell.dna_def().zomes.iter().map(|(name, _)| name.to_string()).collect();
+    // Verify activitypub zomes are present in the DNA definition
+    let mut zomes: Vec<_> = dna
+        .dna_def()
+        .integrity_zomes
+        .iter()
+        .map(|(name, _)| name.to_string())
+        .collect();
+    zomes.extend(
+        dna.dna_def()
+            .coordinator_zomes
+            .iter()
+            .map(|(name, _)| name.to_string()),
+    );
 
     assert!(zomes.contains(&"activitypub_integrity".to_string()), "activitypub_integrity zome not found");
     assert!(zomes.contains(&"activitypub".to_string()), "activitypub zome not found");
+
+    let _app = conductor
+        .setup_app("test-app", &[dna])
+        .await
+        .expect("Failed to install app");
 
     println!("✅ Conductor started and mewsfeed DNA installed successfully");
     println!("   Available zomes: {:?}", zomes);
@@ -54,7 +62,7 @@ async fn test_conductor_setup() {
 async fn test_set_and_get_instance_config() {
     // Test the activitypub zome's instance config functions
 
-    let conductor = SweetConductor::from_standard_config().await;
+    let mut conductor = SweetConductor::from_standard_config().await;
 
     let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../dnas/mewsfeed/workdir/mewsfeed.dna");
@@ -115,7 +123,7 @@ async fn test_set_and_get_instance_config() {
 async fn test_remote_follower_crud() {
     // Test create/get/delete remote follower
 
-    let conductor = SweetConductor::from_standard_config().await;
+    let mut conductor = SweetConductor::from_standard_config().await;
 
     let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../dnas/mewsfeed/workdir/mewsfeed.dna");
@@ -206,20 +214,16 @@ async fn test_zome_data_source_integration() {
     // Full integration test: ZomeDataSource → activitypub zome
     // This test is ignored by default because it requires additional setup
 
-    use activitypub_s2s::zome_data::ZomeDataSource;
-    use holochain_client::{AppWebsocket, AuthorizeSigningCredentialsPayload};
-
-    let conductor = SweetConductor::from_standard_config().await;
+    let mut conductor = SweetConductor::from_standard_config().await;
 
     let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../dnas/mewsfeed/workdir/mewsfeed.dna");
 
     let dna = SweetDnaFile::from_bundle(&dna_path).await.unwrap();
-    let app = conductor.setup_app("test-app", &[dna]).await.unwrap();
+    let _app = conductor.setup_app("test-app", &[dna]).await.unwrap();
 
     // Get app port from conductor
-    let app_port = conductor.get_arbitrary_admin_websocket_port().unwrap();
-    let app_ws_url = format!("ws://localhost:{}", app_port);
+    let _app_port = conductor.get_arbitrary_admin_websocket_port().unwrap();
 
     // Connect via AppWebsocket
     // NOTE: This requires proper authentication setup
