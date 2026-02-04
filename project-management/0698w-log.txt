@@ -1,0 +1,50 @@
+The federation zome pair (integrity + coordinator) that was generated yesterday was reviewed and found correct — the only issue was a specdoc inaccuracy about link  validation in integrity callbacks, which was corrected. The main deliverable today was ZomeDataSource, the bridge between the ActivityPub HTTP server and the Holochain zomes: it implements all 9 FederationDataSource trait methods by making zome calls via holochain_client 0.8, uses mirror types to avoid pulling WASM dependencies into the native binary, and manages RSA signing keys in a local keystore file. It's feature-gated behind a zome Cargo feature and compiles cleanly alongside the full workspace.
+
+---
+
+## Rename Complete: federation → activitypub
+
+All tasks completed successfully:
+
+### 1. Crate Renamed: federation_types → activitypub_types
+   - Directory: crates/activitypub_types/
+   - Updated Cargo.toml package name and lib name
+   - Updated workspace dependencies
+
+### 2. Zomes Renamed: federation → activitypub
+   - Integrity zome: dnas/mewsfeed/zomes/integrity/activitypub/
+   - Coordinator zome: dnas/mewsfeed/zomes/coordinator/activitypub/
+   - All import statements updated (use activitypub_types::, use activitypub_integrity::)
+   - Fixed fully-qualified paths in cross_zome.rs
+
+### 3. DNA Manifest Updated: dnas/mewsfeed/workdir/dna.yaml
+   - federation_integrity → activitypub_integrity
+   - federation → activitypub
+   - WASM paths updated
+
+### 4. ZomeDataSource Updated: crates/activitypub-s2s/src/zome_data.rs
+   - All zome calls changed from "federation" to "activitypub"
+   - Comments updated to reference activitypub zomes
+
+### 5. Specdocs Updated:
+   - 0697E-federation-zome-TODO.adoc → 0697E-activitypub-zome-DONE.adoc
+   - Updated title, abstract, status, and all references to use activitypub naming
+   - Updated 0697D-activitypub-zome-PWOR.adoc with activitypub naming
+   - Fixed Up Next section to reflect that ZomeDataSource already exists
+
+### 6. Build Verification ✅
+   - activitypub_integrity compiles to WASM successfully
+   - activitypub coordinator zome compiles to WASM successfully
+   - cargo check --workspace passes
+   - hc app pack successfully creates mewsfeed.happ
+   - Note: npm run build:zomes has a pre-existing getrandom issue with workspace-level WASM builds
+
+### 7. 0697F Specdoc Created: project-management/0697F-activitypub-integration-testing-TODO.adoc
+   - Focuses on testing/verification rather than implementation (since ZomeDataSource already exists)
+   - Covers TypeScript integration tests, Rust tests, and manual verification
+   - Clarifies architecture: activitypub-s2s is a library, not a standalone server
+
+## Key Learning
+
+The rename confirmed that the activitypub zome pair is the dedicated ActivityPub integration layer, completely separate from core mewsfeed functionality. The "activitypub" naming makes this boundary explicit and matches the original design docs.
+

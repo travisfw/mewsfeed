@@ -15,8 +15,8 @@ S2S server into the DHT and inspecting the persisted state.
 
 This phase delivers three things:
 
-1. A `federation_integrity` / `federation` zome pair storing federation state
-   on the DHT (entry types from link:../crates/federation_types/[`federation_types`]).
+1. A `activitypub_integrity` / `activitypub` zome pair storing activitypub state
+   on the DHT (entry types from link:../crates/activitypub_types/[`activitypub_types`]).
 2. A `ZomeDataSource` implementing
    link:../crates/activitypub-s2s/src/mock_data.rs[`FederationDataSource`]
    via `AppWebsocket`, replacing `MockDataSource`.
@@ -25,7 +25,7 @@ This phase delivers three things:
 
 == Zome: Entry Types and Link Types
 
-Six entry types, all reusing structs from `federation_types`:
+Six entry types, all reusing structs from `activitypub_types`:
 `InstanceConfig`, `MewFederationState`, `RemoteActorRef`, `RemoteFollow`,
 `RemoteFollower`, `RemoteInteraction`. All public visibility.
 
@@ -35,7 +35,7 @@ Seven link types connect them:
 |===
 | Link Type | Purpose
 
-| `MewToFederationState` | Mew hash -> its federation intent
+| `MewToFederationState` | Mew hash -> its activitypub intent
 | `AgentToRemoteFollows` | Agent -> outbound cross-network follows
 | `AgentToRemoteFollowers` | Agent -> inbound fediverse followers
 | `MewToRemoteInteractions` | Mew hash -> remote likes/boosts/replies
@@ -53,7 +53,7 @@ Link bases must match the relevant field in the target entry.
 
 ~18 functions in
 link:../dnas/mewsfeed/zomes/coordinator/federation/src/lib.rs[`federation/src/lib.rs`].
-Grouped: instance config (set/get), mew federation state (create/set_ap_uri/
+Grouped: instance config (set/get), mew activitypub state (create/set_ap_uri/
 get/get_by_uri), remote actor refs (upsert/get), remote follows (create/
 update_status/list/delete), remote followers (create/list/delete), remote
 interactions (create/list/delete_by_activity_uri), inter-zome queries
@@ -113,8 +113,8 @@ Verification reuses the Phase 2 bash test pattern
 
 [source,bash]
 ----
-cargo build -p federation_integrity --target wasm32-unknown-unknown --release
-cargo build -p federation --target wasm32-unknown-unknown --release
+cargo build -p activitypub_integrity --target wasm32-unknown-unknown --release
+cargo build -p activitypub --target wasm32-unknown-unknown --release
 cargo check --workspace
 npm run build:happ
 ----
@@ -195,7 +195,7 @@ assert_json_contains "$OUTPUT_DIR/actor.json" '.inbox' "/inbox" \
 
 [source,bash]
 ----
-# After creating a mew with federation state (via zome call or UI),
+# After creating a mew with activitypub state (via zome call or UI),
 # the outbox should include it
 curl -s -H "Accept: application/activity+json" \
   "${BASE_URL}/users/alice/outbox" > "$OUTPUT_DIR/outbox.json"
@@ -219,8 +219,8 @@ Cargo.toml                                   (MODIFIED)
 == FFA
 
 When the verification scripts pass, the zome is confirmed to persist and
-serve ActivityPub federation data through the S2S protocol layer. Next steps
+serve ActivityPub activitypub data through the S2S protocol layer. Next steps
 are interop testing with Mastodon, Pixelfed, and Loops over a real network;
 signal-based push so the S2S server reacts to new mews without polling; and
-UI integration for the federation visibility picker and remote interaction
+UI integration for the activitypub visibility picker and remote interaction
 display.

@@ -1,5 +1,0 @@
-The federation zome pair (integrity + coordinator) that was generated yesterday was reviewed and found correct — the only issue was a specdoc inaccuracy about link         
-  validation in integrity callbacks, which was corrected. The main deliverable today was ZomeDataSource, the bridge between the ActivityPub HTTP server and the Holochain     
-  zomes: it implements all 9 FederationDataSource trait methods by making zome calls via holochain_client 0.8, uses mirror types to avoid pulling WASM dependencies into the  
-  native binary, and manages RSA signing keys in a local keystore file. It's feature-gated behind a zome Cargo feature and compiles cleanly alongside the full workspace. 
-

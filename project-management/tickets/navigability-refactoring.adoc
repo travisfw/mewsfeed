@@ -1,0 +1,7 @@
+
+== Navigability Refactoring
+
+It was hard to find the activitypub zome.
+Nothing was named such.
+
+Need to plan out what goes where at a high level.

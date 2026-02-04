@@ -1,4 +1,4 @@
-= 0697E: Federation Zome Pair
+= 0697E: ActivityPub Zome Pair
 :toc: macro
 :toc-title: Contents
 :sectnums:
@@ -7,25 +7,28 @@ toc::[]
 
 == Abstract
 
-This specdoc delivers the `federation_integrity` and `federation` coordinator
+This specdoc delivers the `activitypub_integrity` and `activitypub` coordinator
 zome pair, wired into the mewsfeed DNA. The zomes persist ActivityPub
 federation state on the DHT using types from
-link:../crates/federation_types/[`federation_types`].
+link:../crates/activitypub_types/[`activitypub_types`].
 
 This is the Holochain-side implementation described in
 link:0697D-activitypub-zome-PWOR.adoc[0697D]. The S2S module integration
 (`ZomeDataSource`, integration server, round-trip tests) is deferred to 0697F.
+
+**Status**: ✅ COMPLETE - Zomes implemented with deduplication pattern. ZomeDataSource
+already exists in `activitypub-s2s/src/zome_data.rs` (contrary to 0697F plan assumptions).
 
 Verification is build-only: WASM compilation of both zomes, workspace check,
 and hApp assembly.
 
 == Integrity Zome
 
-Location: `dnas/mewsfeed/zomes/integrity/federation/`
+Location: `dnas/mewsfeed/zomes/integrity/activitypub/`
 
 === Entry Types
 
-Six entry types, all public visibility, reusing structs from `federation_types`:
+Six entry types, all public visibility, reusing structs from `activitypub_types`:
 
 [source,rust]
 ----
@@ -54,8 +57,25 @@ pub enum LinkTypes {
     AnchorToInstanceConfig,
     ApUriToFederationState,
     ActorUriToRemoteActorRef,
+    FollowDedupToRemoteFollow,
+    FollowerDedupToRemoteFollower,
+    InteractionDedupToRemoteInteraction,
 }
 ----
+
+==== Deduplication Link Pattern
+
+The last three link types implement O(1) idempotency checks using Path-based
+anchors as composite-key indexes. Without these, duplicate detection would
+require O(n) iteration through all existing entries.
+
+For example, `create_remote_follow` creates a deterministic anchor from
+`"follow:{agent}:{remote_actor_uri}"` and checks
+`FollowDedupToRemoteFollow` links before creating new entries. This prevents
+duplicate follows from ActivityPub retry storms or race conditions.
+
+Trade-off: one extra link per entry (minimal DHT cost) for efficient duplicate
+prevention at write time, critical for federation reliability.
 
 === Validation Rules
 
@@ -83,7 +103,7 @@ pub enum LinkTypes {
   Singleton enforcement is handled at the coordinator level:
   `set_instance_config` calls `get_links` on the anchor and returns an error
   if a link already exists (see
-  link:../dnas/mewsfeed/zomes/coordinator/federation/src/config.rs[`config.rs:15-21`]).
+  link:../dnas/mewsfeed/zomes/coordinator/activitypub/src/config.rs[`config.rs:15-21`]).
 
 Other links::
   Permissive for initial implementation. The link base should correspond to
@@ -96,30 +116,30 @@ Other links::
 [source,toml]
 ----
 [package]
-name = "federation_integrity"
+name = "activitypub_integrity"
 version = "0.0.1"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
-name = "federation_integrity"
+name = "activitypub_integrity"
 
 [dependencies]
 hdi = { workspace = true }
 serde = { workspace = true }
-federation_types = { workspace = true }
+activitypub_types = { workspace = true }
 ----
 
-Note: `federation_types` depends on `hdk`, but `federation_integrity` uses
+Note: `activitypub_types` depends on `hdk`, but `activitypub_integrity` uses
 `hdi`. The entry type structs only need `Serialize + Deserialize +
 SerializedBytes` which both `hdk` and `hdi` re-export. If there is a
 compilation conflict, the integrity zome can re-derive `SerializedBytes` on
-newtype wrappers, or `federation_types` can be refactored to depend on `hdi`
+newtype wrappers, or `activitypub_types` can be refactored to depend on `hdi`
 instead of `hdk`. Evaluate at build time.
 
 == Coordinator Zome
 
-Location: `dnas/mewsfeed/zomes/coordinator/federation/`
+Location: `dnas/mewsfeed/zomes/coordinator/activitypub/`
 
 === Module Layout
 
@@ -178,8 +198,11 @@ Grouped by module. Input/output types use standard HDK patterns
 
 ==== remote_follows.rs
 
-`create_remote_follow(follow: RemoteFollow) -> ExternResult<ActionHash>`::
-  Create entry, link from `follow.local_agent` via `AgentToRemoteFollows`.
+`create_remote_follow(follow: RemoteFollow) -> ExternResult<ActionHash>` *(idempotent)*::
+  Create dedup anchor from `"follow:{agent}:{remote_actor_uri}"`. Check for
+  existing `FollowDedupToRemoteFollow` link. If exists, return existing hash.
+  Otherwise, create entry, link from `follow.local_agent` via
+  `AgentToRemoteFollows`, and create dedup anchor link.
 
 `update_remote_follow_status(input: UpdateFollowStatusInput) -> ExternResult<()>`::
   Input: `follow_hash: ActionHash`, `status: RemoteFollowStatus`.
@@ -189,30 +212,37 @@ Grouped by module. Input/output types use standard HDK patterns
   Get links from agent via `AgentToRemoteFollows`, fetch entries.
 
 `delete_remote_follow(follow_hash: ActionHash) -> ExternResult<()>`::
-  Delete the entry and associated link.
+  Delete the entry, `AgentToRemoteFollows` link, and dedup anchor link.
 
 ==== remote_followers.rs
 
-`create_remote_follower(follower: RemoteFollower) -> ExternResult<ActionHash>`::
-  Create entry, link from `follower.local_agent` via `AgentToRemoteFollowers`.
+`create_remote_follower(follower: RemoteFollower) -> ExternResult<ActionHash>` *(idempotent)*::
+  Create dedup anchor from `"follower:{agent}:{remote_actor_uri}"`. Check for
+  existing `FollowerDedupToRemoteFollower` link. If exists, return existing
+  hash. Otherwise, create entry, link from `follower.local_agent` via
+  `AgentToRemoteFollowers`, and create dedup anchor link.
 
 `list_remote_followers(agent: AgentPubKey) -> ExternResult<Vec<RemoteFollower>>`::
   Get links from agent, fetch entries.
 
 `delete_remote_follower(follower_hash: ActionHash) -> ExternResult<()>`::
-  Delete entry and link.
+  Delete entry, `AgentToRemoteFollowers` link, and dedup anchor link.
 
 ==== remote_interactions.rs
 
-`create_remote_interaction(interaction: RemoteInteraction) -> ExternResult<ActionHash>`::
-  Create entry, link from `interaction.mew_hash` via
-  `MewToRemoteInteractions`.
+`create_remote_interaction(interaction: RemoteInteraction) -> ExternResult<ActionHash>` *(idempotent)*::
+  Create dedup anchor from `"interaction_activity:{activity_uri}"`. Check for
+  existing `InteractionDedupToRemoteInteraction` link. If exists, return
+  existing hash. Otherwise, create entry, link from `interaction.mew_hash` via
+  `MewToRemoteInteractions`, and create dedup anchor link.
 
 `list_remote_interactions(mew_hash: ActionHash) -> ExternResult<Vec<RemoteInteraction>>`::
   Get links from mew hash, fetch entries.
 
-`delete_remote_interaction_by_uri(activity_uri: String) -> ExternResult<()>`::
-  Scan links to find the interaction with matching `activity_uri`, delete it.
+`delete_remote_interaction(input: DeleteRemoteInteractionInput) -> ExternResult<()>`::
+  Input contains `mew_hash` and `activity_uri`. Scan `MewToRemoteInteractions`
+  links to find the interaction with matching `activity_uri`. Delete entry,
+  `MewToRemoteInteractions` link, and dedup anchor link.
 
 ==== cross_zome.rs
 
@@ -242,8 +272,8 @@ name = "federation"
 [dependencies]
 hdk = { workspace = true }
 serde = { workspace = true }
-federation_integrity = { workspace = true }
-federation_types = { workspace = true }
+activitypub_integrity = { workspace = true }
+activitypub_types = { workspace = true }
 hc_call_utils = { workspace = true }
 mews_types = { workspace = true }
 ----
@@ -256,9 +286,9 @@ Under `integrity.zomes`, append:
 
 [source,yaml]
 ----
-    - name: federation_integrity
+    - name: activitypub_integrity
       hash: ~
-      path: "../../../target/wasm32-unknown-unknown/release/federation_integrity.wasm"
+      path: "../../../target/wasm32-unknown-unknown/release/activitypub_integrity.wasm"
       dependencies: ~
 ----
 
@@ -270,7 +300,7 @@ Under `coordinator.zomes`, append:
       hash: ~
       path: "../../../target/wasm32-unknown-unknown/release/federation.wasm"
       dependencies:
-        - name: federation_integrity
+        - name: activitypub_integrity
         - name: mews_integrity
         - name: profiles_integrity
 ----
@@ -281,14 +311,14 @@ Add workspace dependency entries:
 
 [source,toml]
 ----
-[workspace.dependencies.federation_integrity]
+[workspace.dependencies.activitypub_integrity]
 path = "dnas/mewsfeed/zomes/integrity/federation"
 
 [workspace.dependencies.federation]
 path = "dnas/mewsfeed/zomes/coordinator/federation"
 
-[workspace.dependencies.federation_types]
-path = "crates/federation_types"
+[workspace.dependencies.activitypub_types]
+path = "crates/activitypub_types"
 ----
 
 The `members` glob `dnas/*/zomes/integrity/*` and `dnas/*/zomes/coordinator/*`
@@ -300,8 +330,8 @@ already cover the new directories.
 
 [source,bash]
 ----
-cargo build -p federation_integrity --target wasm32-unknown-unknown --release
-cargo build -p federation --target wasm32-unknown-unknown --release
+cargo build -p activitypub_integrity --target wasm32-unknown-unknown --release
+cargo build -p activitypub --target wasm32-unknown-unknown --release
 cargo check --workspace
 npm run build:happ
 ----
@@ -311,20 +341,22 @@ All four commands must succeed.
 === Consistency check
 
 - Every entry type in the integrity zome enum corresponds to a struct in
-  `federation_types`.
+  `activitypub_types`.
 - Every link type in the integrity zome enum is referenced by at least one
-  coordinator function.
+  coordinator function. The three dedup link types are used in
+  `create_remote_follow`, `create_remote_follower`, and
+  `create_remote_interaction` for O(1) idempotency checks.
 - The coordinator `lib.rs` exports all functions listed above as
   `#[hdk_extern]`.
-- The DNA manifest lists `federation_integrity` and `federation` with correct
+- The DNA manifest lists `activitypub_integrity` and `activitypub` with correct
   paths and dependency declarations.
 
 == Up Next
 
-With the zome pair compiling and included in the hApp, the next step is
-link:0697D-activitypub-zome-PWOR.adoc[0697F]: implement `ZomeDataSource` in
-the `activitypub-s2s` crate, create the `integration_server` example binary,
-add DHT debug endpoints, and run the round-trip bash verification scripts
-from 0697D. A separate specdoc (0698x) will address the connection model
-(configurable bind address, LAN mode, Caddy/nginx gateway config for
-internet mode) and S2S module hardening (retry logic, rate limiting, CORS).
+With the zome pair complete and ZomeDataSource already implemented in
+`activitypub-s2s/src/zome_data.rs` (behind the `zome` feature flag), the
+next step is 0697F: create verification tests for the ZomeDataSource +
+activitypub zomes integration. This includes integration tests using the
+Holochain test harness and/or bash scripts for round-trip protocol testing.
+No separate server binary is needed - testing should instantiate ZomeDataSource
+programmatically. Phase 4 (Generic HTTP Gateway) is separate infrastructure work.

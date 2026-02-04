@@ -1,0 +1,248 @@
+= 0697F: ActivityPub Integration Testing
+:toc: macro
+:toc-title: Contents
+:sectnums:
+
+toc::[]
+
+== Abstract
+
+This specdoc covers verification testing of the `ZomeDataSource` + `activitypub`
+zomes integration. The implementation work is already complete:
+
+- `activitypub_integrity` and `activitypub` zomes (0697E) ✅ DONE
+- `ZomeDataSource` in `activitypub-s2s/src/zome_data.rs` (behind `zome` feature) ✅ DONE
+
+What remains is creating integration tests that verify the full round-trip:
+ActivityPub HTTP activities → ZomeDataSource → activitypub zome → DHT → verification.
+
+**Key architectural note**: `activitypub-s2s` is a library crate meant to be
+embedded in Tauri/Electron, NOT a standalone server. Testing should instantiate
+`ZomeDataSource` programmatically within test harnesses, not via a separate
+server binary.
+
+== Testing Approach
+
+=== Option A: Holochain Test Harness (Recommended)
+
+Use the existing tryorama-style integration test pattern from `tests/` directory:
+
+[source,typescript]
+----
+// tests/src/activitypub/integration.test.ts
+import { Scenario } from '@holochain/tryorama';
+import { AppWebsocket } from '@holochain/client';
+
+// Test pattern:
+// 1. Start conductor with activitypub zomes
+// 2. Set InstanceConfig via zome call
+// 3. Create local mew via mews zome
+// 4. Create MewFederationState via activitypub zome
+// 5. Verify state persisted correctly
+// 6. Test remote interactions (Follow, Like, etc.)
+----
+
+**Advantages**:
+- Reuses existing test infrastructure
+- Can test cross-zome interactions (mews ↔ activitypub)
+- No external dependencies
+- Fast iteration
+
+**ZomeDataSource testing**:
+- Requires Rust integration tests in `activitypub-s2s/tests/`
+- Start conductor, instantiate ZomeDataSource, verify zome calls work
+- Can use same DNA as TypeScript tests
+
+=== Option B: Bash Scripts with Conductor
+
+Similar to Phase 2 (0697C) localhost testing:
+
+[source,bash]
+----
+#!/usr/bin/env bash
+# tests/activitypub/round-trip.bash
+
+# Start conductor with activitypub zomes
+hc s generate workdir/mewsfeed.happ --run=$PORT
+
+# Set instance config
+hc zome call activitypub activitypub set_instance_config '{"subdomain": "alice", ...}'
+
+# Create mew and federation state
+hc zome call mewsfeed mews create_mew '{"content": "Hello Fediverse"}'
+hc zome call activitypub activitypub create_mew_federation_state '{...}'
+
+# Verify state
+hc zome call activitypub activitypub get_mew_federation_state '{"mew_hash": "..."}'
+----
+
+**Advantages**:
+- Easy to inspect intermediate state
+- Good for debugging
+- Composable (can call from CI)
+
+**Disadvantages**:
+- Manual conductor lifecycle management
+- Harder to automate complex scenarios
+
+== Test Coverage
+
+=== Core Functions (Must Test)
+
+==== Config Module
+- `set_instance_config` - First call succeeds, second fails (singleton)
+- `get_instance_config` - Returns config after set, None before
+
+==== Federation State Module
+- `create_mew_federation_state` - Creates state for local mew
+- `get_mew_federation_state` - Retrieves by mew hash
+- `update_mew_federation_state` - Updates visibility/ap_uri
+- `get_mew_by_ap_uri` - Reverse lookup by ActivityPub URI
+
+==== Remote Actors Module
+- `cache_remote_actor` - Idempotent actor caching
+- `get_remote_actor` - Retrieves cached actor
+
+==== Remote Follows Module
+- `create_remote_follow` - Idempotent outbound follow
+- `delete_remote_follow` - Removes follow + dedup link
+- `get_remote_follows` - Lists agent's outbound follows
+- `update_remote_follow_status` - Changes follow state
+
+==== Remote Followers Module
+- `create_remote_follower` - Idempotent inbound follower
+- `delete_remote_follower` - Removes follower + dedup link
+- `get_remote_followers` - Lists agent's inbound followers
+
+==== Remote Interactions Module
+- `create_remote_interaction` - Idempotent interaction (Like/Announce/Reply)
+- `delete_remote_interaction` - Removes interaction + dedup link
+- `get_remote_interactions` - Lists mew's remote interactions
+
+==== Cross-Zome Module
+- `get_agent_ap_profile` - Combines profile + instance config
+
+=== Deduplication Testing (Critical)
+
+Each create function uses deduplication links. Test that:
+
+[source,bash]
+----
+# Create twice with same params → both succeed (idempotent)
+create_remote_follow(agent, actor_uri)  # Returns action hash
+create_remote_follow(agent, actor_uri)  # Returns SAME action hash
+
+# Delete once
+delete_remote_follow(agent, actor_uri)  # Removes both entry link + dedup link
+
+# Create again → new entry
+create_remote_follow(agent, actor_uri)  # Returns NEW action hash
+----
+
+=== ZomeDataSource Integration Testing
+
+Rust integration tests in `activitypub-s2s/tests/zome_data_integration.rs`:
+
+[source,rust]
+----
+#[tokio::test]
+async fn test_zome_data_source_follow_activity() {
+    // 1. Start conductor with activitypub zomes
+    let conductor = SweetConductor::from_standard_config().await;
+    let app = conductor.setup_app("mewsfeed", &[dna_path]).await;
+
+    // 2. Get AppWebsocket connection
+    let client = app.client();
+
+    // 3. Instantiate ZomeDataSource
+    let data_source = ZomeDataSource::new(
+        client,
+        "http://localhost:8080".to_string(),
+        RoleName::from("mewsfeed"),
+        keystore_path,
+    ).await?;
+
+    // 4. Send Follow activity via FederationDataSource trait
+    let activity = APActivity { /* Follow activity */ };
+    data_source.handle_activity("alice", activity).await?;
+
+    // 5. Verify follower was created in DHT
+    let followers = data_source.get_followers("alice").await?;
+    assert_eq!(followers.len(), 1);
+}
+----
+
+**Test scenarios**:
+- `handle_activity` for each activity type (Follow, Like, Announce, Undo, Accept, Create)
+- `get_followers`, `get_following` return correct data
+- `get_post` retrieves mew via cross-zome call
+- RSA key persistence and loading
+
+== Verification Gates
+
+Before marking this spec DONE:
+
+=== TypeScript Integration Tests
+
+[source,bash]
+----
+cd tests
+npx vitest run src/activitypub/
+----
+
+At minimum:
+- 1 test per zome module (config, federation_state, remote_actors, etc.)
+- Deduplication tests for create_remote_follow, create_remote_follower, create_remote_interaction
+- Cross-zome test (create mew + federation state)
+
+=== Rust Integration Tests (Optional but Recommended)
+
+[source,bash]
+----
+cd crates/activitypub-s2s
+cargo test --features zome --test zome_data_integration
+----
+
+At minimum:
+- ZomeDataSource instantiation test
+- One activity handling test (e.g., Follow)
+- Key persistence test
+
+=== Manual Smoke Test
+
+[source,bash]
+----
+# Start conductor
+hc s generate workdir/mewsfeed.happ --run=8888
+
+# In another terminal
+hc zome call activitypub activitypub set_instance_config \
+  '{"subdomain": "alice", "gateway_url": "http://localhost:8080", ...}'
+
+hc zome call activitypub activitypub get_instance_config
+# Should return the config
+
+hc zome call activitypub activitypub create_remote_follower \
+  '{"local_agent": "...", "remote_actor_uri": "https://mastodon.social/users/bob"}'
+
+hc zome call activitypub activitypub get_remote_followers '{"agent": "..."}'
+# Should return 1 follower
+----
+
+== Up Next
+
+With Phase 3 (activitypub zomes + ZomeDataSource + verification) complete, Phase 4
+is the Generic HTTP Gateway:
+
+- Caddy/nginx reverse proxy configuration
+- Connection models (LAN mode vs. internet mode)
+- S2S module hardening (retry logic, rate limiting, CORS)
+- Multi-agent gateway architecture (future)
+
+Phase 4 is separate infrastructure work not dependent on the zome implementation.
+Phases 5-7 (inbound/outbound federation, full Fediverse integration) build on top
+of both Phase 3 and Phase 4 foundations.
+
+The activitypub zomes are now feature-complete for federation state persistence.
+Any future changes will be additive (new entry types, new link queries) rather
+than architectural.

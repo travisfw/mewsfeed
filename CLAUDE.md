@@ -24,8 +24,10 @@ work that is out of scope and high-level
 
 ### the specdoc
 
-For any code generation there should be a Markdown or (preferred) AsciiDoc file in the project-management directory detailing tasks to be done, and testing to verify correctness, *before* generating code. This is the **specdoc**.
+For any code generation there should be a Markdown or (preferably) AsciiDoc file in the project-management directory detailing tasks to be done, and testing to verify correctness, *before* generating code. This is the **specdoc**.
 This specdoc may be a ticket in project-management/tickets, or another file indicated by the human driver.
+
+Specdocs should document not just what the software should do, but also why design decisions were made.
 
 #### specdoc file name convention
 The specdoc should follow a naming convention where the first five characters of the file name are most significant hexidecimal digits of unix time starting with 0, eg `0697C`, on 2026 Jan 30.

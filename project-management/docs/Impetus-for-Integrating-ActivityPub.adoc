@@ -22,7 +22,7 @@ to a MewsFeed group with a similar user experience to following an invite link t
 Once connected to a MewsFeed DHT people may participate in the whole Fediverse.
 
 The group would *collectively* administer and *serve* an instance.
-Administration would be optional,
+Administration of the Fediverse instance would be optional,
 but everyone will have the same top-level privileges,
 necessitating some level of trust between members,
 which means this solution is not recommended for large communities where many people don't know each other;
@@ -34,7 +34,8 @@ they must be aware the design is highly vulnerable to *social engineering* attac
 
 === Group Sessions Such as Conference Talks
 
-At a presentation the presenter or facilitator may begin with a QR code to join a MewsFeed DHT, and seed a hashtag for Q&A, and the public may follow notes, photos, and all such posts from everyone in the room.
+At a presentation the presenter or facilitator may begin with a QR code to join a MewsFeed DHT,
+and seed a hashtag for Q&A, and the public may follow notes, photos, and all such posts from everyone in the room.
 The conversations may be continued at the end of the session.
 Participants need not expose personal information to be identified as having been present.
 
@@ -48,8 +49,9 @@ Visibility constraints, such as defaulting to _DHT-only_ posts,
 would allow participants to coordinate connections, make travel arrangements,
 and share important information, and after, photos and memories.
 
-Beyond the utility of information and communication,
-in this story the event producer gives attendees a way to *identify* to the world their membership.
+Beyond the utility of informational communication,
+in this story the event producer gives attendees a way to *identify* to the world their membership,
+for example, saying I was there at Woodstock.
 
 === clubs & other chat groups
 
@@ -59,5 +61,5 @@ with the added benefit of being able to publish to the web and communicate with 
 == Holochain visibility
 
 All of these uses of MewsFeed would generate awareness of Holochain and p2p technology,
-shifting public opinion to understand and demand the appropriate technology for their needs,
+helping shift public opinion to understand and demand the appropriate technology for their needs,
 and leading to trying other software built on Holochain.
