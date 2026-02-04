@@ -49,6 +49,15 @@ path = "dnas/mewsfeed/zomes/coordinator/profiles"
 [workspace.dependencies.profiles_integrity]
 path = "dnas/mewsfeed/zomes/integrity/profiles"
 
+[workspace.dependencies.activitypub_types]
+path = "crates/activitypub_types"
+
+[workspace.dependencies.activitypub_integrity]
+path = "dnas/mewsfeed/zomes/integrity/activitypub"
+
+[workspace.dependencies.activitypub]
+path = "dnas/mewsfeed/zomes/coordinator/activitypub"
+
 [workspace.dependencies.hc_call_utils]
 path = "crates/hc_call_utils"
 

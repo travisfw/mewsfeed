@@ -27,6 +27,10 @@ integrity:
       hash: ~
       path: "../../../target/wasm32-unknown-unknown/release/agent_pins_integrity.wasm"
       dependencies: ~
+    - name: activitypub_integrity
+      hash: ~
+      path: "../../../target/wasm32-unknown-unknown/release/activitypub_integrity.wasm"
+      dependencies: ~
 coordinator:
   zomes:
     - name: profiles
@@ -55,6 +59,13 @@ coordinator:
       path: "../../../target/wasm32-unknown-unknown/release/agent_pins.wasm"
       dependencies:
         - name: agent_pins_integrity
+    - name: activitypub
+      hash: ~
+      path: "../../../target/wasm32-unknown-unknown/release/activitypub.wasm"
+      dependencies:
+        - name: activitypub_integrity
+        - name: mews_integrity
+        - name: profiles_integrity
     - name: ping
       hash: ~
       path: "../../../target/wasm32-unknown-unknown/release/ping.wasm"

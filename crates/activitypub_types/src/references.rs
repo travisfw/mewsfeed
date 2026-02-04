@@ -4,7 +4,8 @@ use hdk::prelude::*;
 /// Full actor data (avatar, bio, public keys, etc.) is cached in the S2S module,
 /// not on the DHT. This struct holds only the minimal fields needed for DHT
 /// consensus.
-#[derive(Serialize, Deserialize, SerializedBytes, Debug, Clone)]
+#[hdk_entry_helper]
+#[derive(Clone)]
 pub struct RemoteActorRef {
     /// The actor's canonical URI, e.g., "https://mastodon.social/users/alice"
     pub actor_uri: String,
@@ -17,7 +18,8 @@ pub struct RemoteActorRef {
 /// A local Holochain agent following a remote fediverse actor.
 /// Stored on the DHT so all nodes know about cross-network follow
 /// relationships.
-#[derive(Serialize, Deserialize, SerializedBytes, Debug, Clone)]
+#[hdk_entry_helper]
+#[derive(Clone)]
 pub struct RemoteFollow {
     pub local_agent: AgentPubKey,
     /// The remote actor's canonical URI
@@ -38,7 +40,8 @@ pub enum RemoteFollowStatus {
 }
 
 /// A remote fediverse actor following a local Holochain agent.
-#[derive(Serialize, Deserialize, SerializedBytes, Debug, Clone)]
+#[hdk_entry_helper]
+#[derive(Clone)]
 pub struct RemoteFollower {
     pub local_agent: AgentPubKey,
     /// The remote actor's canonical URI
@@ -47,7 +50,8 @@ pub struct RemoteFollower {
 }
 
 /// A remote interaction (like, boost, reply) on a local mew from the fediverse.
-#[derive(Serialize, Deserialize, SerializedBytes, Debug, Clone)]
+#[hdk_entry_helper]
+#[derive(Clone)]
 pub struct RemoteInteraction {
     pub mew_hash: ActionHash,
     /// The remote actor's canonical URI

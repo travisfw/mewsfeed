@@ -19,6 +19,8 @@ pub mod note;
 pub mod server;
 pub mod signatures;
 pub mod webfinger;
+#[cfg(feature = "zome")]
+pub mod zome_data;
 
 pub use activity::*;
 pub use actor::*;
